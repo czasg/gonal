@@ -72,3 +72,7 @@ such like concurrent is 0, all payload will serial execution.
 bind handler with labels.
 ### Notify
 push payload into queue, then match handler by label-selector. 
+
+# internal
+each err will notify with a label<"gonal.internal.event": "failure">,
+you can Bind with each label to fetch the failure.
