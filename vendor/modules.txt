@@ -1,0 +1,3 @@
+# github.com/czasg/go-queue v0.0.0-20211107062837-7bc258b860e9
+## explicit
+github.com/czasg/go-queue
