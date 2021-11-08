@@ -73,11 +73,8 @@ func (h *Hub) notify(payload Payload) error {
 		return h.Ctx.Err()
 	default:
 	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	err = h.Q.Push(body)
+	body, _ := json.Marshal(payload)
+	err := h.Q.Push(body)
 	if err != nil {
 		return err
 	}

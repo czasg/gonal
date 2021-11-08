@@ -56,3 +56,59 @@ func TestSetMaxConcurrent(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	cancel()
 }
+
+func TestHub_notify(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	q := queue.NewLifoMemoryQueue(0)
+	_ = q.Push([]byte{1})
+	h := Hub{
+		Ctx:       ctx,
+		CtxCancel: cancel,
+	}
+	_ = h.notify(Payload{})
+
+	h = Hub{
+		Ctx: context.Background(),
+		Q:   q,
+	}
+	_ = h.notify(Payload{})
+}
+
+func TestHub_fetch(t *testing.T) {
+	Bind(func(ctx context.Context, payload Payload) {
+	}, Label{
+		"v1": "v1",
+		"v2": "v1",
+	})
+	hub.fetch(Label{
+		"v1": "v1",
+		"v2": "v1",
+	})
+}
+
+func TestHub_loop(t *testing.T) {
+	SetMaxConcurrent(context.Background(), runtime.NumCPU()*4, queue.NewFifoMemoryQueue(1024))
+	Bind(func(ctx context.Context, payload Payload) {
+		panic("test")
+	}, Label{"type": "test"})
+	_ = hub.Q.Push([]byte{1})
+	_ = Notify(Payload{
+		Label: Label{"type": "test"},
+	})
+	time.Sleep(time.Second)
+}
+
+func TestHub_loop2(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	SetMaxConcurrent(ctx, 0, queue.NewFifoMemoryQueue(1024))
+	Bind(func(ctx context.Context, payload Payload) {
+		cancel()
+		time.Sleep(time.Second)
+	}, Label{"type": "test"})
+	_ = hub.Q.Push([]byte{1})
+	_ = Notify(Payload{
+		Label: Label{"type": "test"},
+	})
+	time.Sleep(time.Second)
+}
