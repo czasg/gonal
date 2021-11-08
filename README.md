@@ -1,4 +1,6 @@
 # gonal
+[![codecov](https://codecov.io/gh/czasg/gonal/branch/main/graph/badge.svg?token=XRI6I1W0C3)](https://codecov.io/gh/czasg/gonal)
+
 gonal is a set of label, registered-machine, label-selector due to a system.
 
 it's very like signal, but gonal use label to replace it. 
