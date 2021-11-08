@@ -1,2 +1,4 @@
 github.com/czasg/go-queue v0.0.0-20211108120258-f7a798f72076 h1:PdeLLplzS5t+2uzMTR7emQM1QBfwcid7n0nBxJBUVoo=
 github.com/czasg/go-queue v0.0.0-20211108120258-f7a798f72076/go.mod h1:Myb/1g8zHhdc13TwwkSuJ5wShsub1yoPrT+ta8isZQ4=
+github.com/czasg/go-queue v0.0.0-20211108140221-bb81096a934d h1:9Bn9Lo04jeMRvYrGaQIvUgQH7cJqtJU1oZNwRCE2Lrs=
+github.com/czasg/go-queue v0.0.0-20211108140221-bb81096a934d/go.mod h1:Myb/1g8zHhdc13TwwkSuJ5wShsub1yoPrT+ta8isZQ4=
