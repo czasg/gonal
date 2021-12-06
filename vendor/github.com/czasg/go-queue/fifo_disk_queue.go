@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sync"
-	"syscall"
 )
 
 const (
@@ -58,12 +56,6 @@ func NewFifoDiskQueueWithChunk(dir string, chunk int) (Queue, error) {
 		return nil, err
 	}
 	queue.TailFile = tail
-	go func() {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		_ = queue.Close()
-	}()
 	return &queue, nil
 }
 
@@ -76,10 +68,6 @@ type FifoDiskQueue struct {
 	TailFile *os.File
 	Lock     sync.Mutex
 	Closed   bool
-}
-
-func (q *FifoDiskQueue) Len() int {
-	return q.Stat.Size
 }
 
 type FifoStat struct {
@@ -185,6 +173,10 @@ func (q *FifoDiskQueue) Close() error {
 		return nil
 	}
 	return os.RemoveAll(q.Dir)
+}
+
+func (q *FifoDiskQueue) Len() int {
+	return q.Stat.Size
 }
 
 func (q *FifoDiskQueue) openStat() (*FifoStat, error) {
