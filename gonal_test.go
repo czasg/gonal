@@ -88,6 +88,7 @@ func Test_Gonal(t *testing.T) {
         assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
         assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
         assertErr(t, Notify(Payload{Label: Label{"test": "panic"}}), nil)
+        time.Sleep(time.Second)
         assertErr(t, Close(), nil)
     }
 }
