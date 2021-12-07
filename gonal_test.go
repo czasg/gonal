@@ -1,114 +1,93 @@
 package gonal
 
 import (
-	"context"
-	"errors"
-	"github.com/czasg/go-queue"
-	"runtime"
-	"testing"
-	"time"
+    "context"
+    "errors"
+    "github.com/czasg/go-queue"
+    "reflect"
+    "testing"
+    "time"
 )
 
-func TestNotify(t *testing.T) {
-	var label Label
-	Bind(func(ctx context.Context, payload Payload) {
-		label = payload.Label
-	}, Label{
-		"type": "test",
-	})
-	label2 := Label{
-		"type":     "test",
-		"property": "test",
-	}
-	err := Notify(Payload{
-		Label: label2,
-	})
-	time.Sleep(time.Millisecond)
-	if err != nil {
-		t.Error(err)
-	}
-	for k, v := range label2 {
-		vv, ok := label[k]
-		if !ok {
-			t.Error(k)
-		}
-		if v != vv {
-			t.Error(v, vv)
-		}
-	}
+func assertErr(t *testing.T, err1, err2 error) {
+    if err1 != err2 {
+        t.Error("failure", err1, err2)
+    }
 }
 
-func Test_notifyQueuePopErr(t *testing.T) {
-	notifyQueuePopErr(errors.New("test"))
+func assertInterface(t *testing.T, data1, data2 interface{}) {
+    if !reflect.DeepEqual(data1, data2) {
+        t.Error("failure", data1, data2)
+    }
 }
 
-func Test_notifyJsonErr(t *testing.T) {
-	notifyJsonErr(errors.New("test"))
+func sleep(ctx context.Context, payload Payload) {
+    time.Sleep(time.Second)
 }
 
-func Test_notifyHandlerPanic(t *testing.T) {
-	notifyHandlerPanic("test")
-}
-
-func TestSetMaxConcurrent(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	SetMaxConcurrent(ctx, runtime.NumCPU()*4, queue.NewFifoMemoryQueue(1024))
-	time.Sleep(time.Millisecond)
-	cancel()
-}
-
-func TestHub_notify(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	q := queue.NewLifoMemoryQueue(0)
-	_ = q.Push([]byte{1})
-	h := Hub{
-		Ctx:       ctx,
-		CtxCancel: cancel,
-	}
-	_ = h.notify(Payload{})
-
-	h = Hub{
-		Ctx: context.Background(),
-		Q:   q,
-	}
-	_ = h.notify(Payload{})
-}
-
-func TestHub_fetch(t *testing.T) {
-	Bind(func(ctx context.Context, payload Payload) {
-	}, Label{
-		"v1": "v1",
-		"v2": "v1",
-	})
-	hub.fetch(Label{
-		"v1": "v1",
-		"v2": "v1",
-	})
-}
-
-func TestHub_loop(t *testing.T) {
-	SetMaxConcurrent(context.Background(), runtime.NumCPU()*4, queue.NewFifoMemoryQueue(1024))
-	Bind(func(ctx context.Context, payload Payload) {
-		panic("test")
-	}, Label{"type": "test"})
-	_ = hub.Q.Push([]byte{1})
-	_ = Notify(Payload{
-		Label: Label{"type": "test"},
-	})
-	time.Sleep(time.Second)
-}
-
-func TestHub_loop2(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	SetMaxConcurrent(ctx, 0, queue.NewFifoMemoryQueue(1024))
-	Bind(func(ctx context.Context, payload Payload) {
-		cancel()
-		time.Sleep(time.Second)
-	}, Label{"type": "test"})
-	_ = hub.Q.Push([]byte{1})
-	_ = Notify(Payload{
-		Label: Label{"type": "test"},
-	})
-	time.Sleep(time.Second)
+func Test_Gonal(t *testing.T) {
+    {
+        g := &Gonal{
+            LabelsMatcher: map[string][]Handler{},
+            C:             make(chan struct{}, 1),
+        }
+        _ = g.SetContext(context.Background())
+        g.Close()
+        assertErr(t, g.Notify(Payload{}), context.Canceled)
+    }
+    {
+        g := &Gonal{
+            LabelsMatcher: map[string][]Handler{},
+            C:             make(chan struct{}, 1),
+        }
+        assertErr(t, g.SetContext(context.Background()), nil)
+        assertErr(t, g.SetConcurrent(0), nil)
+        assertErr(t, g.SetQueue(queue.NewFifoMemoryQueue(2)), nil)
+        g.Bind(Label{"test": "test"}, sleep, sleep, sleep)
+        g.Bind(Label{"test": "test"})
+        assertInterface(t, len(g.Fetch(Label{"test": "test"})), 1)
+        assertInterface(t, len(g.Fetch(Label{"test": "none"})), 0)
+        assertErr(t, g.Q.Push([]byte{1}), nil)
+        assertErr(t, g.Notify(Payload{Label: Label{"test": "test"}}), nil)
+        _ = g.Notify(Payload{Label: Label{"test": "test"}})
+        _ = g.Notify(Payload{Label: Label{"test": "test"}})
+        _ = g.Notify(Payload{Label: Label{"test": "test"}})
+        _ = g.Notify(Payload{Label: Label{"test": "test"}})
+        assertErr(t, g.SetContext(context.Background()), ErrRunning)
+        assertErr(t, g.SetConcurrent(0), ErrRunning)
+        assertErr(t, g.SetQueue(queue.NewFifoMemoryQueue(1)), ErrRunning)
+        time.Sleep(time.Millisecond * 40)
+        assertErr(t, g.Notify(Payload{Label: Label{"test": "test"}}), nil)
+        g.Cancel()
+    }
+    {
+        notifyQueuePopErr(errors.New("test"))
+        notifyQueuePopErr(errors.New("test"))
+        notifyQueuePopErr(errors.New("test"))
+    }
+    {
+        notifyJsonErr(errors.New("test"))
+        notifyJsonErr(errors.New("test"))
+        notifyJsonErr(errors.New("test"))
+    }
+    {
+        notifyHandlerPanic("test")
+        notifyHandlerPanic("test")
+        notifyHandlerPanic("test")
+    }
+    {
+        Fetch(Label{"test": "test"})
+        Bind(Label{"test": "test"}, func(ctx context.Context, payload Payload) {
+            time.Sleep(time.Second)
+        })
+        Bind(Label{"test": "panic"}, func(ctx context.Context, payload Payload) {
+            panic("test")
+        })
+        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
+        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
+        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
+        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
+        assertErr(t, Notify(Payload{Label: Label{"test": "panic"}}), nil)
+        assertErr(t, Close(), nil)
+    }
 }
