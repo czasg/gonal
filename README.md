@@ -3,9 +3,7 @@
 [![codecov](https://codecov.io/gh/czasg/gonal/branch/main/graph/badge.svg?token=XRI6I1W0C3)](https://codecov.io/gh/czasg/gonal)
 [![GitHub Stars](https://img.shields.io/github/stars/czasg/gonal.svg?style=flat-square&label=Stars&logo=github)](https://github.com/czasg/gonal/stargazers)
 
-Gonal is a signal notification and callback.
-
-different from `os.Signal`,  gonal use label to replace it. 
+Gonal is a signal notification and callback, different from `os.Signal`, gonal use label to replace it. 
 
 # demo
 ```golang
