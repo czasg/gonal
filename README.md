@@ -34,14 +34,14 @@ func main() {
 		{
 			_ = gonal.Notify(gonal.Payload{
 				Label: gonal.Label{"key1": "value1"},
-                Body: []byte{},
+				Body: []byte{},
 			})
 			time.Sleep(time.Second)
 		}
 		{
 			_ = gonal.Notify(gonal.Payload{
 				Label: gonal.Label{"key2": "value2"},
-                Body: []byte{},
+				Body: []byte{},
 			})
 			time.Sleep(time.Second)
 		}
