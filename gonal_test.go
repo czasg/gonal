@@ -2,93 +2,58 @@ package gonal
 
 import (
     "context"
-    "errors"
-    "github.com/czasg/go-queue"
-    "reflect"
     "testing"
-    "time"
 )
 
-func assertErr(t *testing.T, err1, err2 error) {
-    if err1 != err2 {
-        t.Error("failure", err1, err2)
-    }
-}
-
-func assertInterface(t *testing.T, data1, data2 interface{}) {
-    if !reflect.DeepEqual(data1, data2) {
-        t.Error("failure", data1, data2)
-    }
-}
-
-func sleep(ctx context.Context, payload Payload) {
-    time.Sleep(time.Second)
-}
-
-func Test_Gonal(t *testing.T) {
+func TestGonal(t *testing.T) {
     {
-        g := &Gonal{
-            LabelsMatcher: map[string][]Handler{},
-            C:             make(chan struct{}, 1),
+        check := make(chan Placeholder)
+        test1 := func(ctx context.Context, labels Labels, data []byte) {
+            check <- Placeholder{}
         }
-        _ = g.SetContext(context.Background())
+        BindHandler(map[string]string{"test": "1"}, test1)
+        FetchHandler(map[string]string{"test": "1"})
+        SetConcurrent(1)
+        _ = Notify(nil, map[string]string{"test": "1"}, nil)
+        <-check
+        Close()
+    }
+    {
+        check := make(chan Placeholder)
+        test1 := func(ctx context.Context, labels Labels, data []byte) {
+            check <- Placeholder{}
+        }
+        g := NewGonal(nil, nil)
+        g.SetConcurrent(1)
+        g.BindHandler(map[string]string{"test": "1"}, test1, test1)
+        _ = g.Notify(nil, map[string]string{"test": "2"}, nil)
+        _ = g.Notify(nil, map[string]string{"test": "1"}, nil)
+        <-check
         g.Close()
-        assertErr(t, g.Notify(Payload{}), context.Canceled)
     }
     {
-        g := &Gonal{
-            LabelsMatcher: map[string][]Handler{},
-            C:             make(chan struct{}, 1),
+        check := make(chan Placeholder)
+        test1 := func(ctx context.Context, labels Labels, data []byte) {
+            check <- Placeholder{}
         }
-        assertErr(t, g.SetContext(context.Background()), nil)
-        assertErr(t, g.SetConcurrent(0), nil)
-        assertErr(t, g.SetQueue(queue.NewFifoMemoryQueue(2)), nil)
-        g.Bind(Label{"test": "test"}, sleep, sleep, sleep)
-        g.Bind(Label{"test": "test"})
-        assertInterface(t, len(g.Fetch(Label{"test": "test"})), 1)
-        assertInterface(t, len(g.Fetch(Label{"test": "none"})), 0)
-        assertErr(t, g.Q.Push([]byte{1}), nil)
-        assertErr(t, g.Notify(Payload{Label: Label{"test": "test"}}), nil)
-        _ = g.Notify(Payload{Label: Label{"test": "test"}})
-        _ = g.Notify(Payload{Label: Label{"test": "test"}})
-        _ = g.Notify(Payload{Label: Label{"test": "test"}})
-        _ = g.Notify(Payload{Label: Label{"test": "test"}})
-        assertErr(t, g.SetContext(context.Background()), ErrRunning)
-        assertErr(t, g.SetConcurrent(0), ErrRunning)
-        assertErr(t, g.SetQueue(queue.NewFifoMemoryQueue(1)), ErrRunning)
-        time.Sleep(time.Millisecond * 40)
-        assertErr(t, g.Notify(Payload{Label: Label{"test": "test"}}), nil)
-        g.Cancel()
+        test2 := func(ctx context.Context, labels Labels, data []byte) {
+            check <- Placeholder{}
+        }
+        g := NewGonal(nil, nil)
+        g.SetConcurrent(1)
+        g.BindHandler(map[string]string{"test1": "1"}, test1)
+        g.BindHandler(map[string]string{"test2": "2"}, test2)
+        _ = g.Notify(nil, map[string]string{"test1": "1", "test2": "2"}, nil)
+        <-check
+        <-check
+        g.Close()
     }
     {
-        notifyQueuePopErr(errors.New("test"))
-        notifyQueuePopErr(errors.New("test"))
-        notifyQueuePopErr(errors.New("test"))
-    }
-    {
-        notifyJsonErr(errors.New("test"))
-        notifyJsonErr(errors.New("test"))
-        notifyJsonErr(errors.New("test"))
-    }
-    {
-        notifyHandlerPanic("test")
-        notifyHandlerPanic("test")
-        notifyHandlerPanic("test")
-    }
-    {
-        Fetch(Label{"test": "test"})
-        Bind(Label{"test": "test"}, func(ctx context.Context, payload Payload) {
-            time.Sleep(time.Second)
-        })
-        Bind(Label{"test": "panic"}, func(ctx context.Context, payload Payload) {
-            panic("test")
-        })
-        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
-        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
-        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
-        assertErr(t, Notify(Payload{Label: Label{"test": "test"}}), nil)
-        assertErr(t, Notify(Payload{Label: Label{"test": "panic"}}), nil)
-        time.Sleep(time.Second)
-        assertErr(t, Close(), nil)
+        ctx, cancel := context.WithCancel(context.Background())
+        cancel()
+        g := NewGonal(ctx, nil)
+        if err := g.Notify(nil, nil, nil); err != ctx.Err() {
+            t.Error("上下文cancel测试异常")
+        }
     }
 }
