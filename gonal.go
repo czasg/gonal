@@ -5,26 +5,24 @@ import (
     "encoding/json"
     "fmt"
     "github.com/czasg/go-queue"
-    "reflect"
     "runtime"
     "sync"
     "time"
 )
 
-func NewGonal(ctx context.Context, q queue.Queue) *Gonal {
-    if ctx == nil {
-        ctx = context.Background()
+var gonal = NewGonal(context.Background())
+
+func NewGonal(ctx context.Context, q ...queue.Queue) *Gonal {
+    if len(q) < 1 {
+        q = append(q, queue.NewFifoMemoryQueue())
     }
-    if q == nil {
-        q = queue.NewFifoMemoryQueue()
-    }
-    gonal := &Gonal{
-        queue:    q,
-        handlers: map[string][]Handler{},
+    gonal := Gonal{
+        queue:    q[0],
+        handlers: map[string][]HandlerWrap{},
     }
     gonal.ctx, gonal.cancel = context.WithCancel(ctx)
     gonal.SetConcurrent(runtime.NumCPU() * 2)
-    return gonal
+    return &gonal
 }
 
 func Notify(ctx context.Context, labels Labels, data []byte) error {
@@ -43,11 +41,13 @@ func SetConcurrent(concurrent int) {
     gonal.SetConcurrent(concurrent)
 }
 
+func UnsafeSetGonal(g *Gonal) {
+    gonal = g
+}
+
 func Close() error {
     return gonal.Close()
 }
-
-var gonal = NewGonal(nil, nil)
 
 type Placeholder struct{}
 type Labels map[string]string
@@ -57,14 +57,20 @@ type Gonal struct {
     ctx      context.Context
     cancel   context.CancelFunc
     reset    context.CancelFunc
-    handlers map[string][]Handler
+    handlers map[string][]HandlerWrap
     queue    queue.Queue
     lock     sync.Mutex
+    index    int
 }
 
 type Payload struct {
     Labels Labels
     Data   []byte
+}
+
+type HandlerWrap struct {
+    Index   int
+    Handler Handler
 }
 
 func (g *Gonal) Notify(ctx context.Context, labels Labels, data []byte) error {
@@ -83,9 +89,17 @@ func (g *Gonal) Notify(ctx context.Context, labels Labels, data []byte) error {
 func (g *Gonal) BindHandler(labels Labels, handlers ...Handler) {
     g.lock.Lock()
     defer g.lock.Unlock()
+    handlerWraps := []HandlerWrap{}
+    for _, handler := range handlers {
+        handlerWraps = append(handlerWraps, HandlerWrap{
+            Index:   g.index,
+            Handler: handler,
+        })
+        g.index++
+    }
     for key, value := range labels {
         hk := fmt.Sprintf("%s=%s", key, value)
-        g.handlers[hk] = append(g.handlers[hk], handlers...)
+        g.handlers[hk] = append(g.handlers[hk], handlerWraps...)
     }
 }
 
@@ -93,7 +107,7 @@ func (g *Gonal) FetchHandler(labels Labels) []Handler {
     g.lock.Lock()
     defer g.lock.Unlock()
     results := []Handler{}
-    handlerSet := map[reflect.Value]Placeholder{}
+    handlerSet := map[int]Placeholder{}
     for key, value := range labels {
         hk := fmt.Sprintf("%s=%s", key, value)
         handlers, ok := g.handlers[hk]
@@ -101,12 +115,12 @@ func (g *Gonal) FetchHandler(labels Labels) []Handler {
             continue
         }
         for _, handler := range handlers {
-            _, ok := handlerSet[reflect.ValueOf(handler)]
+            _, ok := handlerSet[handler.Index]
             if ok {
                 continue
             }
-            handlerSet[reflect.ValueOf(handler)] = Placeholder{}
-            results = append(results, handler)
+            handlerSet[handler.Index] = Placeholder{}
+            results = append(results, handler.Handler)
         }
     }
     return results
@@ -124,7 +138,7 @@ func (g *Gonal) SetConcurrent(concurrent int) {
     defer g.lock.Unlock()
     if g.reset != nil {
         g.reset()
-        time.Sleep(time.Millisecond * 100)
+        time.Sleep(time.Millisecond * 100) // 预留线程退出时间
     }
     ctx, cancel := context.WithCancel(g.ctx)
     limit := make(chan Placeholder, concurrent)
@@ -135,9 +149,14 @@ func (g *Gonal) SetConcurrent(concurrent int) {
 func (g *Gonal) loop(ctx context.Context, limit chan Placeholder) {
     defer close(limit)
     for {
+        select {
+        case <-ctx.Done():
+            return
+        default:
+        }
         data, err := g.queue.Get(ctx)
         if err != nil {
-            return
+            continue
         }
         var payload Payload
         err = json.Unmarshal(data, &payload)
@@ -152,7 +171,8 @@ func (g *Gonal) loop(ctx context.Context, limit chan Placeholder) {
             }
             go func(handler Handler) {
                 defer func() {
-                    if err := recover(); err != nil {}
+                    if err := recover(); err != nil {
+                    }
                     <-limit
                 }()
                 handler(ctx, payload.Labels, payload.Data)
