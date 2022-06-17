@@ -7,6 +7,9 @@ import (
 
 func TestGonal(t *testing.T) {
     {
+        UnsafeSetGonal(NewGonal(context.Background()))
+    }
+    {
         check := make(chan Placeholder)
         test1 := func(ctx context.Context, labels Labels, data []byte) {
             check <- Placeholder{}
@@ -23,7 +26,7 @@ func TestGonal(t *testing.T) {
         test1 := func(ctx context.Context, labels Labels, data []byte) {
             check <- Placeholder{}
         }
-        g := NewGonal(nil, nil)
+        g := NewGonal(context.Background())
         g.SetConcurrent(1)
         g.BindHandler(map[string]string{"test": "1"}, test1, test1)
         _ = g.Notify(nil, map[string]string{"test": "2"}, nil)
@@ -39,7 +42,7 @@ func TestGonal(t *testing.T) {
         test2 := func(ctx context.Context, labels Labels, data []byte) {
             check <- Placeholder{}
         }
-        g := NewGonal(nil, nil)
+        g := NewGonal(context.Background())
         g.SetConcurrent(1)
         g.BindHandler(map[string]string{"test1": "1"}, test1)
         g.BindHandler(map[string]string{"test2": "2"}, test2)
@@ -51,7 +54,7 @@ func TestGonal(t *testing.T) {
     {
         ctx, cancel := context.WithCancel(context.Background())
         cancel()
-        g := NewGonal(ctx, nil)
+        g := NewGonal(ctx)
         if err := g.Notify(nil, nil, nil); err != ctx.Err() {
             t.Error("上下文cancel测试异常")
         }
